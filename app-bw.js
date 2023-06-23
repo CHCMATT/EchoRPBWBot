@@ -1,13 +1,9 @@
 let fs = require('fs');
 require("dotenv/config");
-const cron = require('node-cron');
 let mongoose = require("mongoose");
 let startup = require('./startup.js');
 let { google } = require('googleapis');
 let interact = require('./dsInteractions.js');
-let statsReport = require('./statsReport.js');
-let checkPayments = require('./checkPayments.js');
-let commissionCmds = require('./commissionCmds.js');
 let { Client, Collection, GatewayIntentBits } = require('discord.js');
 
 let client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers], partials: ['MESSAGE', 'CHANNEL', 'REACTION'] });
@@ -20,41 +16,11 @@ client.login(process.env.TOKEN);
 let fileParts = __filename.split(/[\\/]/);
 let fileName = fileParts[fileParts.length - 1];
 
-cron.schedule('0 6 * * SUN', function () { commissionCmds.commissionReport(client); }); // runs at 6:00am every Sunday (SUN)
-cron.schedule('0 0 1 * *', function () { statsReport.statsReport(client); }); // runs at 12:00am on the first day of every month
-cron.schedule('0 16 * * *', function () { checkPayments.checkPayments(client); }); // runs at 4:00pm every day
-
 client.once('ready', async () => {
 	console.log(`[${fileName}] The client is starting up!`);
 	mongoose.set("strictQuery", false);
 	mongoose.connect(process.env.MONGO_URI);
 	console.log(`[${fileName}] Connected to Mongo!`);
-
-	// Google Docs Authorization Stuff
-	let docsAuth = new google.auth.GoogleAuth({
-		keyFile: "./docs-creds.json",
-		scopes: "https://www.googleapis.com/auth/docs"
-	})
-	let docsClient = docsAuth.getClient();
-	let googleDocs = google.docs({ version: "v1", auth: docsClient });
-
-	client.docsAuth = docsAuth;
-	client.googleDocs = googleDocs.documents;
-	console.log(`[${fileName}] Connected to Google Docs!`);
-
-
-	// Google Drive Authorization Stuff
-	let driveAuth = new google.auth.GoogleAuth({
-		keyFile: "./drive-creds.json",
-		scopes: "https://www.googleapis.com/auth/drive"
-	})
-	let driveClient = driveAuth.getClient();
-	let googleDrive = google.drive({ version: "v3", auth: driveClient });
-
-	client.driveAuth = driveAuth;
-	client.driveFiles = googleDrive.files;
-	console.log(`[${fileName}] Connected to Google Drive!`);
-
 
 	// Google Sheets Authorization Stuff
 	let sheetsAuth = new google.auth.GoogleAuth({
