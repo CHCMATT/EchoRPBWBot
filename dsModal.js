@@ -1,19 +1,16 @@
-var moment = require('moment');
-var dbCmds = require('./dbCmds.js');
-var editEmbed = require('./editEmbed.js');
-var { EmbedBuilder } = require('discord.js');
-var personnelCmds = require('./personnelCmds.js');
+let moment = require('moment');
+let { EmbedBuilder, time, quote } = require('discord.js');
+
+function strCleanup(str) {
+	let cleaned = str.replaceAll('`', '-').replaceAll('\\', '-').trimEnd().trimStart();
+	return cleaned;
+};
 
 var formatter = new Intl.NumberFormat('en-US', {
 	style: 'currency',
 	currency: 'USD',
 	maximumFractionDigits: 0
 });
-
-function strCleanup(str) {
-	var cleaned = str.replaceAll('`', '-').replaceAll('\\', '-').trimEnd().trimStart();
-	return cleaned;
-};
 
 function isValidUrl(string) {
 	let url;
@@ -27,140 +24,156 @@ function isValidUrl(string) {
 
 module.exports.modalSubmit = async (interaction) => {
 	try {
-		var modalID = interaction.customId;
+		let modalID = interaction.customId;
 		switch (modalID) {
-			case 'addHouseSoldModal':
-				var realtorName;
-				if (interaction.member.nickname) {
-					realtorName = interaction.member.nickname;
+			case 'newFishPurchaseModal':
+				await interaction.deferReply({ ephemeral: true });
+
+				let discordId = interaction.member.user.id;
+
+				let guild = await interaction.client.guilds.fetch(process.env.DISCORD_SERVER_ID);
+				let user = await guild.members.fetch(discordId);
+
+				let employeeName;
+
+				if (user.nickname) {
+					employeeName = user.nickname;
 				} else {
-					realtorName = interaction.member.user.username;
+					employeeName = user.user.username
 				}
 
-				var now = Math.floor(new Date().getTime() / 1000.0);
-				var saleDate = `<t:${now}:d>`;
+				/*let guild = await client.guilds.fetch(process.env.DISCORD_SERVER_ID);
+				let user = await guild.members.fetch(userId);
+				var initCharName;
+				if (user.nickname) {
+					initCharName = user.nickname;
+				} else {
+					initCharName = user.user.username;
+				}*/
+				let today = new Date();
+				let purchaseDate = time(today, 'd');
 
-				var soldTo = strCleanup(interaction.fields.getTextInputValue('soldToInput'));
-				var lotNum = strCleanup(interaction.fields.getTextInputValue('lotNumInput'));
-				var price = Math.abs(Number(strCleanup(interaction.fields.getTextInputValue('priceInput')).replaceAll(',', '').replaceAll('$', '')));
-				var locationNotes = strCleanup(interaction.fields.getTextInputValue('locNotesInput'));
-				var photosString = strCleanup(interaction.fields.getTextInputValue('photosInput'));
+				let fishQuantity = Number(strCleanup(interaction.fields.getTextInputValue('fishQuantityInput')));
+				let totalCost = Number(strCleanup(interaction.fields.getTextInputValue('totalCostInput').replaceAll(',', '').replaceAll('$', '')));
+				let storageUsed = Number(strCleanup(interaction.fields.getTextInputValue('storageUsedInput')));
+				let depositPhotos = strCleanup(interaction.fields.getTextInputValue('depositPhotosInput'));
 
 				await interaction.client.googleSheets.values.append({
-					auth: interaction.client.sheetsAuth, spreadsheetId: process.env.BACKUP_DATA_SHEET_ID, range: "House Sales!A:G", valueInputOption: "RAW", resource: { values: [[`${realtorName} (<@${interaction.user.id}>)`, saleDate, lotNum, price, soldTo, locationNotes, photosString]] }
+					auth: interaction.client.auth, spreadsheetId: process.env.BACKUP_DATA_SHEET_ID, range: "Fish Purchase!A:F", valueInputOption: "RAW", resource: { values: [[employeeName, purchaseDate, fishQuantity, totalCost, storageUsed, depositPhotos]] }
 				});
 
-				var formattedPrice = formatter.format(price);
-				var costPrice = (price * 0.70);
-				var d8Profit = price - costPrice;
-				var realtorCommission = (d8Profit * 0.20);
-
-				var formattedCostPrice = formatter.format(costPrice);
-				var formattedD8Profit = formatter.format(d8Profit);
-				var formattedRealtorCommission = formatter.format(realtorCommission);
-
-				if (isNaN(price)) { // validate quantity of money
-					await interaction.reply({
-						content: `:exclamation: \`${interaction.fields.getTextInputValue('priceInput')}\` is not a valid number, please be sure to only enter numbers.`,
+				if (isNaN(fishQuantity)) { // validate quantity of fish purchases
+					await interaction.editReply({
+						content: `:exclamation: \`${interaction.fields.getTextInputValue('fishQuantityInput')}\` is not a valid number, please be sure to only enter numbers.`,
 						ephemeral: true
 					});
 					return;
 				}
-				else {
-					var photos = [photosString];
-					if (photosString.includes(",")) {
-						photos = photosString.split(",")
-					} else if (photosString.includes(";")) {
-						photos = photosString.split(";")
-					} else if (photosString.includes(" ")) {
-						photos = photosString.split(" ")
-					} else if (photosString.includes("|")) {
-						photos = photosString.split("|")
-					} else if (photos.length > 1) {
-						await interaction.reply({
-							content: `:exclamation: The photos you linked are not separated properly *(or you didn't submit multiple photos)*. Please be sure to use commas (\`,\`), semicolons(\`;\`), vertical pipes(\`|\`), or spaces (\` \`) to separate your links.`,
+
+				if (isNaN(totalCost)) { // validate quantity of total cost
+					await interaction.editReply({
+						content: `:exclamation: \`${interaction.fields.getTextInputValue('totalCostInput')}\` is not a valid number, please be sure to only enter numbers.`,
+						ephemeral: true
+					});
+					return;
+				}
+
+				if (isNaN(storageUsed)) { // validate quantity of storage used
+					await interaction.editReply({
+						content: `:exclamation: \`${interaction.fields.getTextInputValue('storageUsedInput')}\` is not a valid number, please be sure to only enter numbers.`,
+						ephemeral: true
+					});
+					return;
+				}
+
+				let formattedTotalCost = formatter.format(totalCost);
+
+				var photos = [depositPhotos];
+				if (depositPhotos.includes(",")) {
+					photos = depositPhotos.split(",")
+				} else if (depositPhotos.includes(";")) {
+					photos = depositPhotos.split(";")
+				} else if (depositPhotos.includes(" ")) {
+					photos = depositPhotos.split(" ")
+				} else if (depositPhotos.includes("|")) {
+					photos = depositPhotos.split("|")
+				} else if (photos.length > 1) {
+					await interaction.editReply({
+						content: `:exclamation: The photos you linked are not separated properly. Please be sure to use commas (\`,\`), semicolons(\`;\`), vertical pipes(\`|\`), or spaces (\` \`) to separate your links.`,
+						ephemeral: true
+					});
+					return;
+				}
+
+				for (let i = 0; i < photos.length; i++) {
+					if (photos[i] == "") {
+						photos.splice(i, 1);
+						continue;
+					}
+					if (!isValidUrl(photos[i])) { // validate photo link
+						await interaction.editReply({
+							content: `:exclamation: \`${photos[i].trimStart().trimEnd()}\` is not a valid URL, please be sure to enter a URL including the \`http\:\/\/\` or \`https\:\/\/\` portion.`,
 							ephemeral: true
 						});
 						return;
 					}
-
-					for (let i = 0; i < photos.length; i++) {
-						if (photos[i] == "") {
-							photos.splice(i, 1);
-							continue;
-						}
-						if (!isValidUrl(photos[i])) { // validate photo link
-							await interaction.reply({
-								content: `:exclamation: \`${photos[i].trimStart().trimEnd()}\` is not a valid URL, please be sure to enter a URL including the \`http\:\/\/\` or \`https\:\/\/\` portion.`,
-								ephemeral: true
-							});
-							return;
-						}
-						var allowedValues = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
-						if (!RegExp(allowedValues.join('|')).test(photos[i].toLowerCase())) { // validate photo link, again
-							await interaction.reply({
-								content: `:exclamation: \`${photos[i].trimStart().trimEnd()}\` is not a valid picture URL, please be sure to enter a URL that includes one of the following: \`.png\`, \`.jpg\`, \`.jpeg\`, \`.gif\`, \`.webp\`.`,
-								ephemeral: true
-							});
-							return;
-						}
-					}
-
-					if (photos.length >= 10) {
-						await interaction.reply({
-							content: `:exclamation: You may only include a maximum of 9 photo links (\`${photos.length}\` detected).`,
+					var allowedValues = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
+					if (!RegExp(allowedValues.join('|')).test(photos[i].toLowerCase())) { // validate photo link, again
+						await interaction.editReply({
+							content: `:exclamation: \`${photos[i].trimStart().trimEnd()}\` is not a valid picture URL, please be sure to enter a URL that includes one of the following: \`.png\`, \`.jpg\`, \`.jpeg\`, \`.gif\`, \`.webp\`.`,
 							ephemeral: true
 						});
 						return;
 					}
+				}
 
-					var embeds = [new EmbedBuilder()
-						.setTitle('A new House has been sold!')
+				if (photos.length >= 10) {
+					await interaction.editReply({
+						content: `:exclamation: You may only include a maximum of 9 photo links (\`${photos.length}\` detected).`,
+						ephemeral: true
+					});
+					return;
+				}
+
+				let fishPurchaseEmbed;
+
+				if (photos.length <= 1) {
+					fishPurchaseEmbed = [new EmbedBuilder()
+						.setTitle('Some fish have been purchased!')
 						.addFields(
-							{ name: `Realtor Name:`, value: `${realtorName} (<@${interaction.user.id}>)` },
-							{ name: `Sale Date:`, value: `${saleDate}` },
-							{ name: `Lot Number:`, value: `${lotNum}` },
-							{ name: `Final Sale Price:`, value: `${formattedPrice}` },
-							{ name: `House Sold To:`, value: `${soldTo}` },
-							{ name: `Location/Notes:`, value: `${locationNotes}` }
+							{ name: `Employee Name:`, value: `${employeeName}`, inline: true },
+							{ name: `Purchase Date:`, value: `${purchaseDate}`, inline: true },
+							{ name: `Quantity Purchased:`, value: `${fishQuantity}` },
+							{ name: `Total Cost:`, value: `${formattedTotalCost}` },
+							{ name: `Storage Used:`, value: `${storageUsed}` },
+							{ name: `Photo of Deposit:`, value: ` ` },
 						)
-						.setColor('805B10')];
-
-					var photosEmbed = photos.map(x => new EmbedBuilder().setColor('805B10').setURL('https://echorp.net/').setImage(x));
-
-					embeds = embeds.concat(photosEmbed);
-
-					await interaction.client.channels.cache.get(process.env.HOUSE_SALES_CHANNEL_ID).send({ embeds: embeds });
-				}
-				var personnelStats = await dbCmds.readPersStats(interaction.member.user.id);
-				if (personnelStats == null || personnelStats.charName == null) {
-					await personnelCmds.initPersonnel(interaction.client, interaction.member.user.id);
-				}
-				await dbCmds.addOneSumm("countHousesSold");
-				await dbCmds.addOneSumm("countMonthlyHousesSold");
-				await dbCmds.addOnePersStat(interaction.member.user.id, "housesSold");
-				await dbCmds.addOnePersStat(interaction.member.user.id, "monthlyHousesSold");
-				await editEmbed.editEmbed(interaction.client);
-				if (realtorCommission > 0) {
-					await dbCmds.addCommission(interaction.member.user.id, realtorCommission);
-				}
-				var currCommission = formatter.format(await dbCmds.readCommission(interaction.member.user.id));
-
-				if (realtorCommission > 0) {
-					var formattedCommission = formatter.format(realtorCommission);
-					var reason = `House Sale to \`${soldTo}\` costing \`${formattedPrice}\` on ${saleDate}`
-
-					// success/failure color palette: https://coolors.co/palette/706677-7bc950-fffbfe-13262b-1ca3c4-b80600-1ec276-ffa630
-					var notificationEmbed = new EmbedBuilder()
-						.setTitle('Commission Modified Automatically:')
-						.setDescription(`\`System\` added \`${formattedCommission}\` to <@${interaction.user.id}>'s current commission for a new total of \`${currCommission}\`.\n\n**Reason:** ${reason}.`)
-						.setColor('#1EC276');
-					await interaction.client.channels.cache.get(process.env.COMMISSION_LOGS_CHANNEL_ID).send({ embeds: [notificationEmbed] });
+						.setColor('5A189A')];
+				} else {
+					fishPurchaseEmbed = [new EmbedBuilder()
+						.setTitle('Some fish have been purchased!')
+						.addFields(
+							{ name: `Employee Name:`, value: `${employeeName}`, inline: true },
+							{ name: `Purchase Date:`, value: `${purchaseDate}`, inline: true },
+							{ name: `Quantity Purchased:`, value: `${fishQuantity}` },
+							{ name: `Total Cost:`, value: `${formattedTotalCost}` },
+							{ name: `Storage Used:`, value: `${storageUsed}` },
+							{ name: `Photos of Deposit:`, value: ` ` },
+						)
+						.setColor('5A189A')];
 				}
 
-				var newHousesSoldTotal = await dbCmds.readSummValue("countHousesSold");
+				var photosEmbed = photos.map(x => new EmbedBuilder().setColor('5A189A').setURL('https://echorp.net/').setImage(x));
 
-				await interaction.reply({ content: `Successfully added \`1\` to the \`Houses Sold\` counter - the new total is \`${newHousesSoldTotal}\`.\n\nDetails about this sale:\n> Sale Price: \`${formattedPrice}\`\n> Cost Price: \`${formattedCostPrice}\`\n> Dynasty 8 Profit: \`${formattedD8Profit}\`\n> Your Commission: \`${formattedRealtorCommission}\`\n\nYour weekly commission is now: \`${currCommission}\`.`, ephemeral: true });
+				fishPurchaseEmbed = fishPurchaseEmbed.concat(photosEmbed);
+
+				await interaction.client.channels.cache.get(process.env.PURCHASE_LOG_CHANNEL_ID).send({ embeds: fishPurchaseEmbed });
+
+				await interaction.editReply({
+					content: `Successfully logged your purchase of \`${fishQuantity}\` fish for \`${formattedTotalCost}\`!`,
+					ephemeral: true
+				});
+
 				break;
 			default:
 				await interaction.reply({
@@ -170,9 +183,23 @@ module.exports.modalSubmit = async (interaction) => {
 				console.log(`Error: Unrecognized modal ID: ${interaction.customId}`);
 		}
 	} catch (error) {
-		console.log(`Error in modal popup!`);
-		console.error(error);
+		if (process.env.BOT_NAME == 'test') {
+			console.error(error);
+		} else {
+			let errTime = moment().format('MMMM Do YYYY, h:mm:ss a');
+			let fileParts = __filename.split(/[\\/]/);
+			let fileName = fileParts[fileParts.length - 1];
+
+			let errorEmbed = [new EmbedBuilder()
+				.setTitle(`An error occured on the ${process.env.BOT_NAME} bot file ${fileName}!`)
+				.setDescription(`\`\`\`${error.toString().slice(0, 2000)}\`\`\``)
+				.setColor('B80600')
+				.setFooter({ text: `${errTime}` })];
+
+			await interaction.client.channels.cache.get(process.env.ERROR_LOG_CHANNEL_ID).send({ embeds: errorEmbed });
+
+			console.log(`Error occured at ${errTime} at file ${fileName}!`);
+			console.error(error);
+		}
 	}
 };
-
-

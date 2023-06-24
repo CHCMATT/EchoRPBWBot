@@ -1,64 +1,71 @@
-var moment = require('moment');
-var { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionsBitField } = require('discord.js');
+let moment = require('moment');
+let { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder } = require('discord.js');
 
 module.exports.btnPressed = async (interaction) => {
 	try {
-		var buttonID = interaction.customId;
+		let buttonID = interaction.customId;
 		switch (buttonID) {
-			case 'addHouseSold':
-				var addHouseSoldModal = new ModalBuilder()
-					.setCustomId('addHouseSoldModal')
-					.setTitle('Log a house that you sold');
-				var soldToInput = new TextInputBuilder()
-					.setCustomId('soldToInput')
-					.setLabel("What is the name and info of the buyer?")
+			case 'newFishPurchase':
+				let newFishPurchaseModal = new ModalBuilder()
+					.setCustomId('newFishPurchaseModal')
+					.setTitle('Log a purchase of fish');
+				let fishQuantity = new TextInputBuilder()
+					.setCustomId('fishQuantityInput')
+					.setLabel("How many fish did you purchase?")
 					.setStyle(TextInputStyle.Short)
-					.setPlaceholder('FirstName LastName - CID - DOB')
+					.setPlaceholder('21')
 					.setRequired(true);
-				var lotNumInput = new TextInputBuilder()
-					.setCustomId('lotNumInput')
-					.setLabel("What is the house lot number?")
+				let totalCost = new TextInputBuilder()
+					.setCustomId('totalCostInput')
+					.setLabel("How much did you pay for the fish?")
 					.setStyle(TextInputStyle.Short)
-					.setPlaceholder('1234')
+					.setPlaceholder('$250')
 					.setRequired(true);
-				var priceInput = new TextInputBuilder()
-					.setCustomId('priceInput')
-					.setLabel("What was the final sale price?")
+				let storageUsed = new TextInputBuilder()
+					.setCustomId('storageUsedInput')
+					.setLabel("How much storage was used?")
 					.setStyle(TextInputStyle.Short)
-					.setPlaceholder('150000')
+					.setPlaceholder('400')
 					.setRequired(true);
-				var locNotesInput = new TextInputBuilder()
-					.setCustomId('locNotesInput')
-					.setLabel("What is the locat. and notes about the sale?")
+				let depositPhotos = new TextInputBuilder()
+					.setCustomId('depositPhotosInput')
+					.setLabel("Please submit a photo of the deposit")
 					.setStyle(TextInputStyle.Short)
-					.setPlaceholder('Baytree Canyon Rd, provided smart locks, 956-252-1929')
-					.setRequired(true);
-				var photosInput = new TextInputBuilder()
-					.setCustomId('photosInput')
-					.setLabel("Include photos of GPS & front of house")
-					.setStyle(TextInputStyle.Paragraph)
-					.setPlaceholder('https://i.imgur.com/wgJiq13.jpg, https://i.imgur.com/hv6jVYT.jpg')
+					.setPlaceholder('https://i.imgur.com/B8cps9d.png')
 					.setRequired(true);
 
-				// meme gallery: https://imgur.com/gallery/Et0Qm
+				let fishQuantityRow = new ActionRowBuilder().addComponents(fishQuantity);
+				let totalCostRow = new ActionRowBuilder().addComponents(totalCost);
+				let storageUsedRow = new ActionRowBuilder().addComponents(storageUsed);
+				let depositPhotosRow = new ActionRowBuilder().addComponents(depositPhotos);
 
-				var soldToInputRow = new ActionRowBuilder().addComponents(soldToInput);
-				var lotNumInputRow = new ActionRowBuilder().addComponents(lotNumInput);
-				var priceInputRow = new ActionRowBuilder().addComponents(priceInput);
-				var locNotesInputRow = new ActionRowBuilder().addComponents(locNotesInput);
-				var photosInputRow = new ActionRowBuilder().addComponents(photosInput);
+				newFishPurchaseModal.addComponents(fishQuantityRow, totalCostRow, storageUsedRow, depositPhotosRow);
 
-				addHouseSoldModal.addComponents(soldToInputRow, lotNumInputRow, priceInputRow, locNotesInputRow, photosInputRow);
+				await interaction.showModal(newFishPurchaseModal);
 
-				await interaction.showModal(addHouseSoldModal);
 				break;
 			default:
-				await interaction.editReply({ content: `I'm not familiar with this button press. Please tag @CHCMATT to fix this issue.`, ephemeral: true });
+				await interaction.reply({ content: `I'm not familiar with this button press. Please tag @CHCMATT to fix this issue.`, ephemeral: true });
 				console.log(`Error: Unrecognized button press: ${interaction.customId}`);
 		}
-	}
-	catch (error) {
-		console.log(`Error in button press!`);
-		console.error(error);
+	} catch (error) {
+		if (process.env.BOT_NAME == 'test') {
+			console.error(error);
+		} else {
+			let errTime = moment().format('MMMM Do YYYY, h:mm:ss a');
+			let fileParts = __filename.split(/[\\/]/);
+			let fileName = fileParts[fileParts.length - 1];
+
+			let errorEmbed = [new EmbedBuilder()
+				.setTitle(`An error occured on the ${process.env.BOT_NAME} bot file ${fileName}!`)
+				.setDescription(`\`\`\`${error.toString().slice(0, 2000)}\`\`\``)
+				.setColor('B80600')
+				.setFooter({ text: `${errTime}` })];
+
+			await interaction.client.channels.cache.get(process.env.ERROR_LOG_CHANNEL_ID).send({ embeds: errorEmbed });
+
+			console.log(`Error occured at ${errTime} at file ${fileName}!`);
+			console.error(error);
+		}
 	}
 };
